@@ -29,7 +29,7 @@ namespace FluentMigrator.Runner
 {
     public class MigrationRunner : IMigrationRunner
     {
-        private Assembly _migrationAssembly;
+        private ICollection<MigrationAssemblyInfo> _migrationAssemblies;
         private IAnnouncer _announcer;
         private IStopWatch _stopWatch;
         private bool _alreadyOutputPreviewOnlyModeWarning;
@@ -46,8 +46,18 @@ namespace FluentMigrator.Runner
         public IList<Exception> CaughtExceptions { get; private set; }
 
         public MigrationRunner(Assembly assembly, IRunnerContext runnerContext, IMigrationProcessor processor)
+            : this(
+                new List<MigrationAssemblyInfo>() { new MigrationAssemblyInfo() { Assembly = assembly , Namespace = runnerContext.Namespace} }, 
+                runnerContext, 
+                processor,
+                false)
         {
-            _migrationAssembly = assembly;
+
+        }
+
+        public MigrationRunner(ICollection<MigrationAssemblyInfo> assemblyInfos, IRunnerContext runnerContext, IMigrationProcessor processor, bool loadNestedNamespaces)
+        {
+            _migrationAssemblies = assemblyInfos;
             _announcer = runnerContext.Announcer;
             Processor = processor;
             _stopWatch = runnerContext.StopWatch;
@@ -60,10 +70,11 @@ namespace FluentMigrator.Runner
             if (!string.IsNullOrEmpty(runnerContext.WorkingDirectory))
                 Conventions.GetWorkingDirectory = () => runnerContext.WorkingDirectory;
 
-            VersionLoader = new VersionLoader(this, _migrationAssembly, Conventions);
-            MigrationLoader = new MigrationLoader(Conventions, _migrationAssembly, runnerContext.Namespace, runnerContext.NestedNamespaces, runnerContext.Tags);
+            VersionLoader = new VersionLoader(this, assemblyInfos, Conventions);
+            MigrationLoader = new MigrationLoader(Conventions, assemblyInfos, loadNestedNamespaces , runnerContext.Tags);
             ProfileLoader = new ProfileLoader(runnerContext, this, Conventions);
         }
+
 
         public IVersionLoader VersionLoader { get; set; }
 
@@ -274,9 +285,9 @@ namespace FluentMigrator.Runner
             }
         }
 
-        public Assembly MigrationAssembly
+        public ICollection<MigrationAssemblyInfo> MigrationAssemblies
         {
-            get { return _migrationAssembly; }
+            get { return _migrationAssemblies; }
         }
 
         private string GetMigrationName(IMigration migration)
@@ -308,7 +319,7 @@ namespace FluentMigrator.Runner
 
             CaughtExceptions = new List<Exception>();
 
-            var context = new MigrationContext(Conventions, Processor, MigrationAssembly, ApplicationContext);
+            var context = new MigrationContext(Conventions, Processor, Assembly.GetAssembly(migration.GetType()), ApplicationContext);
             migration.GetUpExpressions(context);
 
             _stopWatch.Start();
@@ -326,7 +337,7 @@ namespace FluentMigrator.Runner
 
             CaughtExceptions = new List<Exception>();
 
-            var context = new MigrationContext(Conventions, Processor, MigrationAssembly, ApplicationContext);
+            var context = new MigrationContext(Conventions, Processor, Assembly.GetAssembly(migration.GetType()), ApplicationContext);
             migration.GetDownExpressions(context);
 
             _stopWatch.Start();
