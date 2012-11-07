@@ -19,6 +19,7 @@
 using System;
 using FluentMigrator.Runner.Initialization.AssemblyLoader;
 using FluentMigrator.Runner.Processors;
+using System.Collections.Generic;
 
 namespace FluentMigrator.Runner.Initialization
 {
@@ -37,11 +38,16 @@ namespace FluentMigrator.Runner.Initialization
 
         protected virtual void Initialize()
         {
-            var assembly = AssemblyLoaderFactory.GetAssemblyLoader(RunnerContext.Target).Load();
+            var assemblies = new List<MigrationAssemblyInfo>();
+            var assmNames = RunnerContext.Target.Split(new string[] { ";" }, StringSplitOptions.RemoveEmptyEntries);
+            foreach (var asm in assmNames) {
+                var assembly = AssemblyLoaderFactory.GetAssemblyLoader(asm).Load();
+                assemblies.Add(new MigrationAssemblyInfo { Assembly = assembly });
+            }
 
-            var processor = InitializeProcessor(assembly.Location);
+            var processor = InitializeProcessor(assemblies[0].Assembly.Location);
 
-            Runner = new MigrationRunner(assembly, RunnerContext, processor);
+            Runner = new MigrationRunner(assemblies, RunnerContext, processor, true);
         }
 
         public void Execute()
